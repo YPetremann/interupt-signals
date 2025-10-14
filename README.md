@@ -1,19 +1,21 @@
 ## Description
 
-THis add a combinator that containe all signals using in train station names, whenever a station is added, renamed, mined or destroyed, we update the list
+This add a automanaged logistic section for constant combinators that containe all signals used in train station names, whenever a station is added, renamed, mined or destroyed, it got updated.
 
-## events
+This help setting smart interupts based on signals when items are not in the train
+without setting each signal manually, 
 
-on_entity_logistic_slot_changed 
+Instead you only need to add a constant combinator with this logistic section to relevant train stations and add items or fluid icons to train stops to automaticaly get them in the logistic section
 
-on_pre_build
-on_built_entity
+Multiple forces are supported: a combinator will only display signals used in the force train stops
 
-on_entity_renamed
+## Experimental
 
-on_pre_player_mined_entity
+This mod have not been extensively tested, so please report any issue
 
-on_object_destroyed 
+**Known bugs:**
+- It's not possible to prevent removing or renaming the logistic section globally, 
+it will be recreated automaticaly with correct naming but removing logistic section has the side effect of unlinking every constant combinator to it
 
 ## License
 
