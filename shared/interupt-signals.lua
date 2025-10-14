@@ -7,11 +7,6 @@ local init = require("utils.events.init")
 
 local groupname = "[virtual-signal=signal-everything][virtual-signal=signal-signal-parameter]"
 
-init.register(function()
-  storage.objects = {}
-  storage.forces = {}
-end)
-
 local function get_objects_store()
   if not storage.objects then storage.objects = {} end
   return storage.objects
@@ -60,22 +55,24 @@ local function get_control_behaviour(force_store)
   return control_behaviour, nil
 end
 
---- this function processes a train stop name and returns the signals found in it
---- for example, a train stop named "Iron Ore [item=iron-ore][fluid=water][item=iron-ore]"
---- will return {{type="item",name="iron-ore",count=2}, {type="fluid",name="water",count=1}}
---- count depends on the number of times the signal appears in the name
+local signal_types = { item="item", fluid="fluid", ["virtual-signal"]="virtual" }
 local function process_train_stop(name)
   if not name then return {} end
   local signals = {}
-  for signal_type, signal_name in string.gmatch(name, "%[(%a+)=(%S-)%]") do
-    if signal_type and signal_name then
-      local key = signal_type.."="..signal_name
-      if not signals[key] then signals[key] = { type = signal_type, name = signal_name, count = 0 } end
+  for signal_type, signal_name in string.gmatch(name, "%[([%w-]+)=([%w-]+)%]") do
+    local key = signal_type.."="..signal_name
+    local type = signal_types[signal_type]
+    local name = signal_name
+    if type and name then
+      if not signals[key] then 
+        signals[key] = { type = type, name = name, count = 0 }
+      end
       signals[key].count = signals[key].count + 1
     end
   end
   return signals
 end
+
 local function process_train_stops(force_store)
   local objects = get_objects_store()
   local global_signals = {}
@@ -119,6 +116,40 @@ local function refresh_sections(force)
   section.filters = force_store.filters
   if not had_section then control_behaviour.remove_section(section.index) end
 end
+
+init.register(function()
+  storage.objects = {}
+  storage.forces = {}
+
+  local has_processed = false
+  for _,surface in pairs(game.surfaces) do
+    local constant_combinators=surface.find_entities_filtered{type="constant-combinator"}
+    local train_stops=surface.find_entities_filtered{type="train-stop"}
+    for _,entity in pairs(constant_combinators) do
+      local force = entity.force
+      local unit_number = entity.unit_number
+      get_objects_store()[unit_number] = { type = "constant-combinator", entity=entity, force = force }
+      get_force_store(force).constant_combinators[unit_number] = true
+      script.register_on_object_destroyed(entity)
+      has_processed=true
+    end
+    for _,entity in pairs(train_stops) do
+      local force = entity.force
+      local name = entity.backer_name
+      local unit_number = entity.unit_number
+      get_objects_store()[unit_number] = { type = "train_stop", old_name = nil, name = name, entity=entity, force = force }
+      get_force_store(force).train_stops[unit_number] = true
+      script.register_on_object_destroyed(entity)
+      has_processed=true
+    end
+  end
+
+  if has_processed then
+    for _,force in pairs(game.forces) do
+      refresh_sections(force)
+    end
+  end
+end)
 
 -- MARK: constant combinators events
 player_built_entity.register({ { filter = "type", type = "constant-combinator" } }, function(event)

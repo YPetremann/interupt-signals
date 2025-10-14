@@ -1,5 +1,5 @@
 mod_name = "interupt-signals"
-mod_version = "0.0.1"
+-- mod_version = "0.0.1" 
 
 require"utils.checks"
 

@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.2
+Date: 2025-10-14
+  Changes:
+    - Will process existing train stops and constant combinators when adding mod to existing game.
+---------------------------------------------------------------------------------------------------
 Version: 0.0.1
 Date: 2025-10-14
   Features:
