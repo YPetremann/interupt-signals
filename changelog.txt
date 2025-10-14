@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 0.0.1
-Date: 2024-10-14
+Date: 2025-10-14
   Features:
     - Add a automanaged logistic section for constant combinators for signal parameters
     - Update when train stations got added, removed or updated
