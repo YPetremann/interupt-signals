@@ -1,0 +1,40 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.0.6
+Date: ????
+  Changes:
+---------------------------------------------------------------------------------------------------
+Version: 0.0.5
+Date: 2025-09-29
+  Bugfixes:
+    - Fix that rail layer would return a Locomotive instead of a Rail Layer when mined
+---------------------------------------------------------------------------------------------------
+Version: 0.0.4
+Date: 2025-09-27
+  Features:
+    - Rail Layer will now clear obstacles (trees, rocks, cliffs, buildings)
+    - Rail Layer will now place tiles if needed (landfill, concrete, etc)
+
+---------------------------------------------------------------------------------------------------
+Version: 0.0.3
+Date: 2025-09-26
+  Experimental:
+    - (Experimental) support for power poles placement in a 7 tile wide circle around the rail layer
+
+---------------------------------------------------------------------------------------------------
+Version: 0.0.2
+Date: 2025-09-26
+  Changes:
+    - Changed technology icon to reflect rail layer behaviour
+
+---------------------------------------------------------------------------------------------------
+Version: 0.0.1
+Date: 2025-09-26
+  Features:
+    - Added the rail layer locomotive
+    - It lay down rails and signals as it moves
+    - Items are consumed from train cargo wagons
+    - Scripts only run when rail layer moves
+
+  Todo:
+    - Elevated rails are unsupported by the rail layer
+    - Trees and rocks must be manually cleared
