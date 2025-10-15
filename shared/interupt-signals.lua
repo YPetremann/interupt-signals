@@ -5,66 +5,66 @@ local object_destroyed = require("utils.events.object_destroyed")
 local gui_closed = require("utils.events.gui_closed")
 local init = require("utils.events.init")
 
-local groupname = "[virtual-signal=signal-everything][virtual-signal=signal-signal-parameter]"
+local virtual_group_name = "[virtual-signal=signal-everything][virtual-signal=signal-signal-parameter]"
+local item_group_name = "[virtual-signal=signal-everything][virtual-signal=signal-item-parameter]"
+local fuel_group_name = "[virtual-signal=signal-everything][virtual-signal=signal-fuel-parameter]"
+local fluid_group_name = "[virtual-signal=signal-everything][virtual-signal=signal-fluid-parameter]"
+local group_names={
+  [virtual_group_name]=true,
+  [item_group_name]=true,
+  [fuel_group_name]=true,
+  [fluid_group_name]=true,
+}
 
+---@class Object
+---@field type string
+---@field old_name string?
+---@field name string?
+---@field entity LuaEntity
+---@field force LuaForce
+
+---comment
+---@return table<integer, Object>
 local function get_objects_store()
   if not storage.objects then storage.objects = {} end
   return storage.objects
 end
 
+---@class ForceStore
+---@field train_stops table<number, boolean>
+---@field constant_combinators table<number, boolean>
+---@field virtuals table<integer, LogisticFilter>
+---@field items table<integer, LogisticFilter>
+---@field fuels table<integer, LogisticFilter>
+---@field fluids table<integer, LogisticFilter>
+
+---comment
+---@return ForceStore
 local function get_force_store(force)
   if not storage.forces then storage.forces = {} end
   if not storage.forces[force.name] then
     storage.forces[force.name] = {
       train_stops = {},
-      filters= {},
+      virtuals = {},
+      items = {},
+      fuels = {},
+      fluids = {},
       constant_combinators = {}
     }
   end
   return storage.forces[force.name]
 end
 
-local function get_control_behaviour(force_store)
-  local exist = false
-  for i in pairs(force_store.constant_combinators) do exist = true break end
-  if not exist then return nil,nil end
-  local objects = get_objects_store()
-  for unit_number, _ in pairs(force_store.constant_combinators) do
-    local entity = objects[unit_number].entity
-    if not entity or not entity.valid then goto continue end
-    local control_behaviour = entity.get_or_create_control_behavior()
-    if not control_behaviour then goto continue end
-    for _,section in pairs(control_behaviour.sections) do
-      if section.group == groupname then
-        return control_behaviour, section
-      end
-    end
-    ::continue::
-  end
-
-  local entity = nil
-  for unit_number in pairs(force_store.constant_combinators) do
-    local obj = objects[unit_number]
-    if obj then
-      local ent = objects[unit_number].entity
-      if ent and ent.valid then entity=ent end
-    end
-  end
-  if not entity then return nil,nil end
-  local control_behaviour = entity.get_or_create_control_behavior()
-  return control_behaviour, nil
-end
-
-local signal_types = { item="item", fluid="fluid", ["virtual-signal"]="virtual" }
+local signal_types = { item = "item", fluid = "fluid", ["virtual-signal"] = "virtual" }
 local function process_train_stop(name)
   if not name then return {} end
   local signals = {}
   for signal_type, signal_name in string.gmatch(name, "%[([%w-]+)=([%w-]+)%]") do
-    local key = signal_type.."="..signal_name
+    local key = signal_type .. "=" .. signal_name
     local type = signal_types[signal_type]
     local name = signal_name
     if type and name then
-      if not signals[key] then 
+      if not signals[key] then
         signals[key] = { type = type, name = name, count = 0 }
       end
       signals[key].count = signals[key].count + 1
@@ -79,7 +79,7 @@ local function process_train_stops(force_store)
   for unit_number in pairs(force_store.train_stops) do
     local obj = objects[unit_number]
     local signals = process_train_stop(obj.name)
-    for key,signal in pairs(signals) do
+    for key, signal in pairs(signals) do
       if not global_signals[key] then
         global_signals[key] = { type = signal.type, name = signal.name, count = 0 }
       end
@@ -87,34 +87,60 @@ local function process_train_stops(force_store)
     end
   end
 
-  force_store.filters = {}
-  for _,signal in pairs(global_signals) do
-    table.insert(force_store.filters, {
-      value = {
-        name = signal.name,
-        type = signal.type,
-        quality = "normal",
-        comparator = "=",
-      },
+  force_store.items = {}
+  force_store.fuels = {}
+  force_store.fluids = {}
+  force_store.virtuals = {}
+  for _, signal in pairs(global_signals) do
+    local model = {
+      value = { name = signal.name, type = signal.type, quality = "normal", comparator = "=" },
       min = signal.count,
-      max = signal.count,
       import_from = "nauvis"
-    })
+    }
+    if signal.type == "item" then table.insert(force_store.items, model) end
+    if signal.type == "fluid" then table.insert(force_store.fluids, model) end
+    if signal.type == "virtual" then table.insert(force_store.virtuals, model) end
+    if signal.type == "item" and prototypes.item[signal.name].fuel_value>0 then table.insert(force_store.fuels, model) end
+    if signal.type == "fluid" and prototypes.fluid[signal.name].fuel_value>0 then table.insert(force_store.fuels, model) end
   end
 end
 
+---comment
+---@param control_behaviour LuaConstantCombinatorControlBehavior
+---@param name string
+---@param filters table<integer, LogisticFilter>
+local function update_group(control_behaviour, name, filters)
+  ---@type LuaLogisticSection
+  local section = nil
+
+  for _, isection in pairs(control_behaviour.sections) do
+    if isection.group == name then section = isection break end
+  end
+
+
+  local had_section = section ~= nil
+  if not had_section then section = control_behaviour.add_section(name) --[[@as LuaLogisticSection]] end
+  section.filters = filters
+  if not had_section then control_behaviour.remove_section(section.index) end
+end
+
+---@param force LuaForce
 local function refresh_sections(force)
   local force_store = get_force_store(force)
-  local control_behaviour, section = get_control_behaviour(force_store)
-  if not control_behaviour then return end
+  local objects = get_objects_store()
+  if table_size(force_store.constant_combinators) == 0 then return end
+
+  local unit_number = next(force_store.constant_combinators) --[[@as number]]
+  local entity = objects[unit_number].entity
+  if not entity or not entity.valid then return end
+  local control_behaviour = entity.get_or_create_control_behavior()
 
   -- process all train stops to find signals in their names
   process_train_stops(force_store)
-
-  local had_section = section ~= nil
-  if not had_section then section = control_behaviour.add_section(groupname) end
-  section.filters = force_store.filters
-  if not had_section then control_behaviour.remove_section(section.index) end
+  update_group(control_behaviour, virtual_group_name, force_store.virtuals)
+  update_group(control_behaviour, item_group_name, force_store.items)
+  update_group(control_behaviour, fuel_group_name, force_store.fuels)
+  update_group(control_behaviour, fluid_group_name, force_store.fluids)
 end
 
 init.register(function()
@@ -122,30 +148,36 @@ init.register(function()
   storage.forces = {}
 
   local has_processed = false
-  for _,surface in pairs(game.surfaces) do
-    local constant_combinators=surface.find_entities_filtered{type="constant-combinator"}
-    local train_stops=surface.find_entities_filtered{type="train-stop"}
-    for _,entity in pairs(constant_combinators) do
+  for _, surface in pairs(game.surfaces) do
+    local constant_combinators = surface.find_entities_filtered { type = "constant-combinator" }
+    local train_stops = surface.find_entities_filtered { type = "train-stop" }
+    for _, entity in pairs(constant_combinators) do
       local force = entity.force
-      local unit_number = entity.unit_number
-      get_objects_store()[unit_number] = { type = "constant-combinator", entity=entity, force = force }
+      local unit_number = entity.unit_number or 0
+      get_objects_store()[unit_number] = { type = "constant-combinator", entity = entity, force = force }
       get_force_store(force).constant_combinators[unit_number] = true
       script.register_on_object_destroyed(entity)
-      has_processed=true
+      has_processed = true
     end
-    for _,entity in pairs(train_stops) do
+    for _, entity in pairs(train_stops) do
       local force = entity.force
       local name = entity.backer_name
-      local unit_number = entity.unit_number
-      get_objects_store()[unit_number] = { type = "train_stop", old_name = nil, name = name, entity=entity, force = force }
+      local unit_number = entity.unit_number or 0
+      get_objects_store()[unit_number] = {
+        type = "train_stop",
+        old_name = nil,
+        name = name,
+        entity = entity,
+        force = force
+      }
       get_force_store(force).train_stops[unit_number] = true
       script.register_on_object_destroyed(entity)
-      has_processed=true
+      has_processed = true
     end
   end
 
   if has_processed then
-    for _,force in pairs(game.forces) do
+    for _, force in pairs(game.forces) do
       refresh_sections(force)
     end
   end
@@ -155,39 +187,39 @@ end)
 player_built_entity.register({ { filter = "type", type = "constant-combinator" } }, function(event)
   local entity = event.entity
   local force = entity.force
-  local unit_number = entity.unit_number
-  get_objects_store()[unit_number] = { type = "constant-combinator", entity=entity, force = force }
-  get_force_store(force).constant_combinators[unit_number] = true
+  local unit_number = entity.unit_number or 0
+  get_objects_store()[unit_number] = { type = "constant-combinator", entity = entity, force = force }
+  local constant_combinators = get_force_store(force).constant_combinators
+  constant_combinators[unit_number] = true
   script.register_on_object_destroyed(entity)
-  -- we check if the entity has the group
 
-  refresh_sections(force, entity)
+  -- when first creating constant combinator, refresh right away
+  if table_size(constant_combinators) == 1 then
+    refresh_sections(force)
+  end
+end)
 
-  -- remove group
+gui_closed.register(function(event)
+  local entity = event.entity
+  if not entity or entity.type ~= "constant-combinator" then return end
+  refresh_sections(entity.force)
+end)
+
+entity_logistic_slot_changed.register(function(event)
+  local entity = event.entity
+  if not group_names[event.section.group] then return end
+  refresh_sections(entity.force --[[@as LuaForce]])
 end)
 
 player_built_entity.register({ { filter = "type", type = "train-stop" } }, function(event)
   local entity = event.entity
   local force = entity.force
   local name = entity.backer_name
-  local unit_number = entity.unit_number
-  get_objects_store()[unit_number] = { type = "train_stop", old_name = nil, name = name, entity=entity, force = force }
+  local unit_number = entity.unit_number or 0
+  get_objects_store()[unit_number] = { type = "train_stop", old_name = nil, name = name, entity = entity, force = force }
   get_force_store(force).train_stops[unit_number] = true
   script.register_on_object_destroyed(entity)
-  refresh_sections(force)
-end)
-
-
-gui_closed.register(function(event)
-  local entity = event.entity
-  if not entity or entity.type ~= "constant-combinator" then return end
-  refresh_sections(entity.force, entity)
-end)
-
-entity_logistic_slot_changed.register(function(event)
-  local entity = event.entity
-  if event.section.group ~= groupname then return end
-  refresh_sections(entity.force, entity)
+  refresh_sections(force --[[@as LuaForce]])
 end)
 
 entity_renamed.register(function(event)
@@ -196,7 +228,7 @@ entity_renamed.register(function(event)
   local objects = get_objects_store()
   objects[unit_number].old_name = event.old_name
   objects[unit_number].name = entity.backer_name
-  refresh_sections(entity.force)
+  refresh_sections(entity.force --[[@as LuaForce]])
 end)
 
 object_destroyed.register(function(event)
@@ -214,5 +246,4 @@ object_destroyed.register(function(event)
     get_force_store(obj.force).constant_combinators[unit_number] = nil
   end
   get_objects_store()[unit_number] = nil
-
 end)
