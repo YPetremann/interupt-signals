@@ -115,15 +115,15 @@ end
 
 local function global_register(handler, filters)
   filters = filters and flatten(filters, 1)
-  script.on_event(defines.events.on_robot_built_entity, handler, filters)
+  script.on_event(defines.events.on_space_platform_built_entity, handler, filters)
 end
 
 -- MARK: -Handler Registry
 local event = {}
 
 --- register init handler
----@param filter LuaRobotBuiltEntityEventFilter[]
----@param handler fun(event:EventData.on_robot_built_entity)
+---@param filter LuaPlatformBuiltEntityEventFilter[]
+---@param handler fun(event:EventData.on_space_platform_built_entity)
 ---@return uint32
 function event.register(filter, handler)
   print("register player_built_entity event")
@@ -139,7 +139,7 @@ function event.register(filter, handler)
 end
 
 --- unregister init handler
----@param filter {handler:function}|{id:uint32}|{filter:LuaRobotBuiltEntityEventFilter[]}
+---@param filter {handler:function}|{id:uint32}|{filter:LuaPlatformBuiltEntityEventFilter[]}
 function event.unregister(filter)
   local _filter_id = nil
   if filter.filter then _filter_id = get_filter(filter.filter) end

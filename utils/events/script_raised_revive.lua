@@ -65,7 +65,7 @@ local function filters_processor(filters, event)
       passed = true
     end
     local filter_processor = filter_processors[single_filter.filter] or filter_processors["default"]
-    local result =  filter_processor(single_filter, event)
+    local result = filter_processor(single_filter, event)
     if single_filter.invert then result = not result end
     if not result then passed = false end
   end
@@ -115,15 +115,15 @@ end
 
 local function global_register(handler, filters)
   filters = filters and flatten(filters, 1)
-  script.on_event(defines.events.on_robot_built_entity, handler, filters)
+  script.on_event(defines.events.script_raised_revive, handler, filters)
 end
 
 -- MARK: -Handler Registry
 local event = {}
 
 --- register init handler
----@param filter LuaRobotBuiltEntityEventFilter[]
----@param handler fun(event:EventData.on_robot_built_entity)
+---@param filter LuaScriptRaisedReviveEventFilter[]
+---@param handler fun(event:EventData.script_raised_revive )
 ---@return uint32
 function event.register(filter, handler)
   print("register player_built_entity event")
@@ -139,7 +139,7 @@ function event.register(filter, handler)
 end
 
 --- unregister init handler
----@param filter {handler:function}|{id:uint32}|{filter:LuaRobotBuiltEntityEventFilter[]}
+---@param filter {handler:function}|{id:uint32}|{filter:LuaScriptRaisedReviveEventFilter[]}
 function event.unregister(filter)
   local _filter_id = nil
   if filter.filter then _filter_id = get_filter(filter.filter) end
@@ -149,7 +149,7 @@ function event.unregister(filter)
         filterHandlers[handler_id] = nil
       end
     end
-    if #filterHandlers == 0 then 
+    if #filterHandlers == 0 then
       handlers_registry[filter_id] = nil
       unregister_filter(filter_id)
     end

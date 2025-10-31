@@ -3,17 +3,21 @@ local entity_logistic_slot_changed = require("utils.events.entity_logistic_slot_
 local entity_renamed = require("utils.events.entity_renamed")
 local object_destroyed = require("utils.events.object_destroyed")
 local gui_closed = require("utils.events.gui_closed")
+local robot_built_entity = require "utils.events.robot_built_entity"
+local platform_built_entity = require "utils.events.platform_built_entity"
+local script_raised_built = require "utils.events.script_raised_built"
+local script_raised_revive = require "utils.events.script_raised_revive"
 local init = require("utils.events.init")
 
 local virtual_group_name = "[virtual-signal=signal-everything][virtual-signal=signal-signal-parameter]"
 local item_group_name = "[virtual-signal=signal-everything][virtual-signal=signal-item-parameter]"
 local fuel_group_name = "[virtual-signal=signal-everything][virtual-signal=signal-fuel-parameter]"
 local fluid_group_name = "[virtual-signal=signal-everything][virtual-signal=signal-fluid-parameter]"
-local group_names={
-  [virtual_group_name]=true,
-  [item_group_name]=true,
-  [fuel_group_name]=true,
-  [fluid_group_name]=true,
+local group_names = {
+  [virtual_group_name] = true,
+  [item_group_name] = true,
+  [fuel_group_name] = true,
+  [fluid_group_name] = true,
 }
 
 ---@class Object
@@ -100,8 +104,8 @@ local function process_train_stops(force_store)
     if signal.type == "item" then table.insert(force_store.items, model) end
     if signal.type == "fluid" then table.insert(force_store.fluids, model) end
     if signal.type == "virtual" then table.insert(force_store.virtuals, model) end
-    if signal.type == "item" and prototypes.item[signal.name].fuel_value>0 then table.insert(force_store.fuels, model) end
-    if signal.type == "fluid" and prototypes.fluid[signal.name].fuel_value>0 then table.insert(force_store.fuels, model) end
+    if signal.type == "item" and prototypes.item[signal.name].fuel_value > 0 then table.insert(force_store.fuels, model) end
+    if signal.type == "fluid" and prototypes.fluid[signal.name].fuel_value > 0 then table.insert(force_store.fuels, model) end
   end
 end
 
@@ -114,7 +118,10 @@ local function update_group(control_behaviour, name, filters)
   local section = nil
 
   for _, isection in pairs(control_behaviour.sections) do
-    if isection.group == name then section = isection break end
+    if isection.group == name then
+      section = isection
+      break
+    end
   end
 
 
@@ -184,7 +191,7 @@ init.register(function()
 end)
 
 -- MARK: constant combinators events
-player_built_entity.register({ { filter = "type", type = "constant-combinator" } }, function(event)
+local function built_constant_combinator(event)
   local entity = event.entity
   local force = entity.force
   local unit_number = entity.unit_number or 0
@@ -197,7 +204,7 @@ player_built_entity.register({ { filter = "type", type = "constant-combinator" }
   if table_size(constant_combinators) == 1 then
     refresh_sections(force)
   end
-end)
+end
 
 gui_closed.register(function(event)
   local entity = event.entity
@@ -211,7 +218,7 @@ entity_logistic_slot_changed.register(function(event)
   refresh_sections(entity.force --[[@as LuaForce]])
 end)
 
-player_built_entity.register({ { filter = "type", type = "train-stop" } }, function(event)
+local function built_train_stop(event)
   local entity = event.entity
   local force = entity.force
   local name = entity.backer_name
@@ -220,15 +227,15 @@ player_built_entity.register({ { filter = "type", type = "train-stop" } }, funct
   get_force_store(force).train_stops[unit_number] = true
   script.register_on_object_destroyed(entity)
   refresh_sections(force --[[@as LuaForce]])
-end)
+end
 
 entity_renamed.register(function(event)
-  local entity = event.entity
-  local unit_number = entity.unit_number
-  local objects = get_objects_store()
-  objects[unit_number].old_name = event.old_name
-  objects[unit_number].name = entity.backer_name
-  refresh_sections(entity.force --[[@as LuaForce]])
+  local obj = get_objects_store()[event.entity.unit_number]
+  if not obj then return end
+
+  obj.old_name = event.old_name
+  obj.name = obj.entity.backer_name
+  refresh_sections(obj.entity.force --[[@as LuaForce]])
 end)
 
 object_destroyed.register(function(event)
@@ -247,3 +254,14 @@ object_destroyed.register(function(event)
   end
   get_objects_store()[unit_number] = nil
 end)
+
+player_built_entity.register({ { filter = "type", type = "constant-combinator" } }, built_constant_combinator)
+robot_built_entity.register({ { filter = "type", type = "constant-combinator" } }, built_constant_combinator)
+platform_built_entity.register({ { filter = "type", type = "constant-combinator" } }, built_constant_combinator)
+script_raised_revive.register({ { filter = "type", type = "constant-combinator" } }, built_constant_combinator)
+
+player_built_entity.register({ { filter = "type", type = "train-stop" } }, built_train_stop)
+robot_built_entity.register({ { filter = "type", type = "train-stop" } }, built_train_stop)
+platform_built_entity.register({ { filter = "type", type = "train-stop" } }, built_train_stop)
+script_raised_built.register({ { filter = "type", type = "train-stop" } }, built_train_stop)
+script_raised_revive.register({ { filter = "type", type = "train-stop" } }, built_train_stop)

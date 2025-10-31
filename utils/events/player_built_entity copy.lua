@@ -56,6 +56,9 @@ local filter_processors = {
   ["default"] = function(f, e) return true end,
 }
 
+--- process a chain of filters
+---@param filters LuaPlayerBuiltEntityEventFilter[]
+---@param event EventData.on_built_entity
 local function filters_processor(filters, event)
   if #filters == 0 then return true end
   local passed = false
@@ -83,6 +86,8 @@ local function get_filter(filter)
 end
 
 --- register filter, check if it already exists and return its id
+---@param filter LuaPlayerBuiltEntityEventFilter[]
+--- @return uint32
 local function register_filter(filter)
   local id = get_filter(filter)
   if id then return id end
@@ -115,15 +120,15 @@ end
 
 local function global_register(handler, filters)
   filters = filters and flatten(filters, 1)
-  script.on_event(defines.events.on_robot_built_entity, handler, filters)
+  script.on_event(defines.events.on_built_entity, handler, filters)
 end
 
 -- MARK: -Handler Registry
 local event = {}
 
 --- register init handler
----@param filter LuaRobotBuiltEntityEventFilter[]
----@param handler fun(event:EventData.on_robot_built_entity)
+---@param filter LuaPlayerBuiltEntityEventFilter[]
+---@param handler fun(event:EventData.on_built_entity)
 ---@return uint32
 function event.register(filter, handler)
   print("register player_built_entity event")
@@ -139,7 +144,7 @@ function event.register(filter, handler)
 end
 
 --- unregister init handler
----@param filter {handler:function}|{id:uint32}|{filter:LuaRobotBuiltEntityEventFilter[]}
+---@param filter {handler:function}|{id:uint32}|{filter:LuaPlayerBuiltEntityEventFilter[]}
 function event.unregister(filter)
   local _filter_id = nil
   if filter.filter then _filter_id = get_filter(filter.filter) end
